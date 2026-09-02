@@ -1,0 +1,11 @@
+name,sex,group,relations,preferred people,Friday Dinner,Saturday Lunch,Saturday Dinner
+Alice Smith,F,Smith Family,Bob Smith,Carol Jones,yes,yes,yes
+Bob Smith,M,Smith Family,Alice Smith,David Brown,yes,yes,yes
+Carol Jones,F,Jones Family,David Jones,Alice Smith,yes,yes,yes
+David Jones,M,Jones Family,Carol Jones,Eve White,yes,no,yes
+Eve White,F,White Family,,Bob Smith,no,yes,yes
+Frank White,M,White Family,Eve White,,yes,yes,no
+Grace Lee,F,Lee Family,,Carol Jones,yes,yes,yes
+Henry Lee,M,Lee Family,Grace Lee,Frank White,no,yes,yes
+Isla Brown,F,Brown Family,,Alice Smith,yes,no,yes
+James Brown,M,Brown Family,Isla Brown,,yes,yes,yes

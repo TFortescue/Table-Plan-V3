@@ -1,0 +1,20 @@
+name,sex,group,relations,preferred people,Friday Dinner,Saturday Lunch,Saturday Dinner
+Tom,male,Fortescue,"Weez, Phoebe, John, Hugh",Louisa,yes,yes,yes
+Weez,female,Fortescue,"Tom, Phoebe, John",,yes,yes,yes
+Kitty,female,Fortescue,Sam,,yes,yes,yes
+Sam,male,Fortescue,Kitty,,yes,yes,yes
+DLB,male,Fortescue,,,yes,yes,yes
+John,male,Fortescue,"Tom, Phoebe, Weez,",Louisa,yes,yes,yes
+Phoebe,female,Fortescue,"Tom, John, Weez,",,yes,yes,yes
+George,male,Fortescue,,,yes,yes,yes
+Louisa,female,Fortescue,,"Tom, John",yes,yes,yes
+Jamie,male,Fortescue,Bella,,yes,yes,yes
+Bella,female,Fortescue,Jamie,,yes,yes,yes
+Hugh,male,Fortescue,"Tom, Phoebe, John",,yes,yes,no
+Ed W,male,Weldon,Claire,,no,yes,no
+Ed F1,male,Weldon,,,no,yes,no
+Ed F2,male,Weldon,,,no,yes,no
+Claire,female,Weldon,Ed W,,no,yes,no
+John D,male,Dixon,Emma D,,no,yes,no
+Emma D,female,Dixon,John D,,no,yes,no
+Dixson 1,male,Dixon,,,no,yes,no
