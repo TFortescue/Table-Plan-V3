@@ -17,9 +17,12 @@ PENALTY_SAME_SEX_CHAIN    = 1200
 PENALTY_SAME_SEX_LOAD     = 120
 
 
+SEX_ALIASES = {"m": "male", "man": "male", "f": "female", "woman": "female"}
+
+
 class Person:
     def __init__(self, pid, name, sex, relations, preferred, meals, group=None):
-        sex = sex.lower().strip()
+        sex = SEX_ALIASES.get(sex.lower().strip(), sex.lower().strip())
         if sex not in ("male", "female"):
             raise ValueError(f"Invalid sex '{sex}' for '{name}', must be male/female.")
         self.id = pid

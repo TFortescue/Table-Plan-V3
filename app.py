@@ -1,5 +1,7 @@
 import os
 import io
+import pickle
+import tempfile
 import threading
 import uuid
 from math import sin, cos, pi
@@ -8,6 +10,8 @@ from flask import (
     Flask, render_template_string, request, redirect,
     url_for, session, flash, send_file, jsonify
 )
+from flask.sessions import SessionInterface, SessionMixin
+from werkzeug.datastructures import CallbackDict
 from werkzeug.utils import secure_filename
 
 import Table_Plans as tp
@@ -18,10 +22,72 @@ from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.units import cm
 from reportlab.lib import colors
 
+# ── Server-side sessions ──
+# Flask's default session is a signed cookie capped at ~4 KB, which large
+# seating plans overflow silently. Store session data on disk instead and
+# keep only a random session ID in the cookie.
+class _DiskSession(CallbackDict, SessionMixin):
+    def __init__(self, initial=None, sid=None, new=False):
+        def on_update(self):
+            self.modified = True
+        super().__init__(initial or {}, on_update)
+        self.sid = sid
+        self.new = new
+        self.modified = False
+
+
+class DiskSessionInterface(SessionInterface):
+    def __init__(self, directory):
+        self.directory = directory
+        os.makedirs(directory, exist_ok=True)
+
+    def _path(self, sid):
+        safe = "".join(ch for ch in sid if ch in "0123456789abcdef")  # no path traversal
+        return os.path.join(self.directory, f"sess_{safe}.pkl")
+
+    def open_session(self, app, request):
+        sid = request.cookies.get(self.get_cookie_name(app))
+        if sid:
+            try:
+                with open(self._path(sid), "rb") as f:
+                    return _DiskSession(pickle.load(f), sid=sid)
+            except (OSError, pickle.PickleError, EOFError):
+                pass
+        return _DiskSession(sid=uuid.uuid4().hex, new=True)
+
+    def save_session(self, app, session, response):
+        name = self.get_cookie_name(app)
+        domain = self.get_cookie_domain(app)
+        path = self.get_cookie_path(app)
+        if not session:
+            if session.modified:
+                try:
+                    os.remove(self._path(session.sid))
+                except OSError:
+                    pass
+                response.delete_cookie(name, domain=domain, path=path)
+            return
+        if session.modified or session.new:
+            with open(self._path(session.sid), "wb") as f:
+                pickle.dump(dict(session), f)
+        response.set_cookie(
+            name, session.sid,
+            httponly=True,
+            secure=self.get_cookie_secure(app),
+            samesite="Lax",
+            domain=domain, path=path,
+        )
+
+
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-change-me-in-production")
+app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
+app.config["MAX_CONTENT_LENGTH"] = 2 * 1024 * 1024  # 2 MB upload limit
+app.session_interface = DiskSessionInterface(
+    os.environ.get("SESSION_DIR", os.path.join(tempfile.gettempdir(), "table_planner_sessions"))
+)
 
-UPLOAD_FOLDER = "uploads"
+UPLOAD_FOLDER = os.environ.get("UPLOAD_DIR", "uploads")
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
@@ -480,18 +546,14 @@ def build_global_pairs_from_seating(seating, exclude_meal=None):
     return pairs
 
 
-def suggest_table_sizes(n, preferred_sizes=(10, 12, 8)):
+def suggest_table_sizes(n, target=10, max_size=12):
+    """Split n guests into as few tables as possible (about `target` each, never
+    more than `max_size`), sized as evenly as possible: 21 -> [11, 10], 25 -> [9, 8, 8]."""
     if n <= 0:
         return []
-    sizes = []
-    remaining = n
-    while remaining > 0:
-        chosen = next((s for s in preferred_sizes if remaining - s >= 0), None)
-        sizes.append(chosen if chosen else remaining)
-        if not chosen:
-            break
-        remaining -= chosen
-    return sizes
+    tables = max(1, -(-n // max_size), round(n / target))
+    base, extra = divmod(n, tables)
+    return [base + 1] * extra + [base] * (tables - extra)
 
 
 def build_summary(seating, meals):
@@ -584,7 +646,7 @@ def upload_file():
         if not file or file.filename == "":
             errors.append("Please select a CSV file.")
         else:
-            filename = secure_filename(file.filename)
+            filename = f"{uuid.uuid4().hex[:12]}_{secure_filename(file.filename) or 'guests.csv'}"
             filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
             file.save(filepath)
             session["csv_path"] = filepath
@@ -596,7 +658,15 @@ def upload_file():
             session.pop("job_id", None)
             people = tp.read_people_from_csv(filepath)
             errs = tp.validate_people(people)
-            if errs:
+            if not people:
+                errors.append(
+                    "No guests could be read from that file. Check it has the columns "
+                    "name, sex, relations, preferred people, then one column per meal, "
+                    "and that sex is male/female (or M/F)."
+                )
+            elif not meals:
+                errors.append("No meal columns found after the 'preferred people' column.")
+            elif errs:
                 errors.extend(errs)
             else:
                 return redirect(url_for("attendees"))
@@ -1041,6 +1111,8 @@ def results():
     const data = await r.json();
     if (data.status === 'done') {{
       window.location.href = '/results';
+    }} else if (data.status === 'not_found') {{
+      window.location.reload();  // server restarted mid-solve: start again
     }} else if (data.status === 'error') {{
       document.querySelector('.spinner-wrap').innerHTML =
         '<div class="alert alert-error">Solver error: ' + data.error + '</div>';
@@ -1415,4 +1487,5 @@ def download_csv():
 # ─────────────────────────────────────────────
 if __name__ == "__main__":
     debug = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
-    app.run(debug=debug, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=debug, host="0.0.0.0", port=port)
