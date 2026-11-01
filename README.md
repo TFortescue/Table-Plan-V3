@@ -1,62 +1,58 @@
 # Table Planner
 
-Generates circular seating plans across multiple meals: alternates men and women, keeps relations apart, seats preferred neighbours together, and avoids repeat neighbours from one meal to the next.
+Seating plans for weekends with several meals. It alternates men and women, keeps relations and keep-apart pairs separate, seats preferred neighbours together, and avoids anyone sitting next to the same person twice, both within the weekend and compared with past weekends.
+
+## Using it
+
+1. **Upload** a guest CSV (or open a saved plan file).
+2. **Guests**: check the list. Add late guests or placeholders like "Weldon guest 1".
+3. **Tables**: set seats per table for each meal ("Suggest sizes" splits evenly).
+4. **Seating**: the plan is generated. Then:
+   - **Tap a guest** and every other seat at that meal turns **green** (safe swap), **amber** (minor, e.g. two women together) or **red** (would repeat neighbours or break a keep-apart rule, with the reason). Tap a guest to swap, at any table. Every change has **Undo**.
+   - **🔒 Lock** guests you're happy with, then **↻ Regenerate** that meal (or everything) to re-seat everyone else around them. Use this for the host at the head of the table too.
+   - **✎ Rename** fills in placeholders. **Not at this meal** / **Remove guest** handle drop-outs; **＋ Add guest** handles late additions.
+   - **⇆ Keep apart & past events**: pairs who must never sit together, and plans from previous weekends so recent neighbours are kept apart.
+   - **💾 Save plan** downloads a file you can reopen later, or add as a past event next time.
+   - **🖨 Print**: table diagrams (1 or 4 per page), table lists, an A–Z "who sits where" sheet, fold-over place cards, or a CSV.
+
+Your latest plan is also kept in your browser, so if the server restarts you can pick up where you left off.
+
+## CSV format
+
+```
+name,sex,group,relations,preferred people,Friday Dinner,Saturday Lunch
+Olivia,female,Smith,Duncan,Tom,Yes,No
+Duncan,male,Smith,Olivia,,Yes,Yes
+```
+
+- **sex**: male/female (or M/F)
+- **group** (optional): family or party. Kept spread out.
+- **relations**: people they must *not* sit next to (comma-separated)
+- **preferred people**: people they'd like to sit next to
+- One column per meal, in the order the meals happen: `Yes` or `No`
+
+Templates: `static/Example_Plan.csv`, `static/Blank_Plan.csv`.
 
 ## Run locally
 
 ```bash
 pip install -r requirements.txt
-python app.py
+python app.py        # http://localhost:5000
 ```
 
-Then open http://localhost:5000
+## Hosting (Render)
 
-## Host it online (Render — free, one click)
+render.com → **New → Blueprint** → pick this repo. `render.yaml` sets everything up, including `SECRET_KEY`. Every push to `main` redeploys automatically.
 
-1. Go to https://render.com and sign in with GitHub.
-2. Click **New → Blueprint** and pick this repository.
-3. Render reads `render.yaml`, generates a `SECRET_KEY` for you, and deploys.
-4. Your app is live at `https://table-planner-xxxx.onrender.com`.
+On a phone: open the site, then Share → **Add to Home Screen**.
 
-The free plan sleeps after 15 minutes idle, so the first visit after a break takes ~30 seconds to wake up.
+## Code
 
-## Host it on Railway instead
-
-1. https://railway.app → **New Project → Deploy from GitHub repo** → pick this repo.
-2. Under **Variables**, add `SECRET_KEY` (any long random string) and `SESSION_COOKIE_SECURE=true`.
-3. Under **Settings → Networking**, click **Generate Domain**.
-
-Railway uses the `Procfile` automatically.
-
-## Use it on your phone
-
-Open the hosted URL, then:
-- **iPhone (Safari):** Share → Add to Home Screen
-- **Android (Chrome):** ⋮ menu → Add to Home Screen
-
-## CSV format
-
-```
-name,sex,relations,preferred people,Breakfast,Lunch,Dinner
-Olivia,female,Duncan,Tom,Yes,No,Yes
-Duncan,male,Olivia,,Yes,Yes,No
-```
-
-- **relations** — people who should *not* sit next to this person (e.g. a spouse)
-- **preferred people** — people they *should* sit next to if possible
-- Every column after `preferred people` is a meal: `Yes` or `No`
-
-Templates: `static/Example_Plan.csv`, `static/Blank_Plan.csv`.
-
-## Environment variables
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `SECRET_KEY` | dev value | **Set this in production** |
-| `SESSION_COOKIE_SECURE` | `false` | Set `true` when served over HTTPS |
-| `PORT` | `5000` | Set automatically by the host |
-| `FLASK_DEBUG` | `false` | Local development only |
-| `UPLOAD_DIR` | `uploads/` | Where uploaded CSVs are stored |
-| `SESSION_DIR` | system temp | Where session data is stored |
-
-Uploads and sessions live on the server's temporary disk, so they reset when the app redeploys or restarts. That's fine for planning an event in one sitting.
+| File | What it does |
+|---|---|
+| `app.py` | Web pages, JSON API, downloads |
+| `planner.py` | Plan data, clash checks, swap suggestions, edits, save/open |
+| `solver.py` | Seating optimiser (simulated annealing across all tables of a meal, with locked seats) |
+| `pdfs.py` | Printable outputs |
+| `static/results.js` | The interactive seating editor |
+| `Table_Plans.py` | CSV reading and validation (also a command-line version) |
