@@ -87,7 +87,7 @@ def _asset_version(*names):
     return h.hexdigest()[:8]
 
 
-ASSET_V = _asset_version("app.css", "results.js")
+ASSET_V = _asset_version("app.css", "results.js", "new.js")
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ def suggest_table_sizes(n, target=10, max_size=12):
     return [base + 1] * extra + [base] * (tables - extra)
 
 
-STEPS = [(1, "Upload", "/"), (2, "Guests", "/attendees"), (3, "Tables", "/configure_tables"), (4, "Seating", "/results")]
+STEPS = [(1, "Start", "/"), (2, "Guests", "/attendees"), (3, "Tables", "/configure_tables"), (4, "Seating", "/results")]
 
 
 def page(title, body, step=None, wide=False, scripts=""):
@@ -191,15 +191,20 @@ def upload_file():
 
     body = f"""
 <h1>Seating Plan Generator</h1>
-<p class="subtitle">Upload a guest list, or open a plan you saved earlier.
-<a href="/static/Example_Plan.csv" style="color:var(--gold)">Example CSV</a> ·
-<a href="/static/Blank_Plan.csv" style="color:var(--gold)">Blank template</a></p>
+<p class="subtitle">Plan who sits where across a weekend of meals: no repeat neighbours, couples apart, men and women alternating.</p>
 {alerts(errors, "error")}
 <div class="card resume" id="resume" hidden>
   <h3>Pick up where you left off</h3>
   <p class="text-muted" id="resume-text"></p>
   <button class="btn btn-primary mt1" id="resume-btn" type="button">Resume plan →</button>
 </div>
+<a class="card start-card mt2" href="/new">
+  <span class="start-icon">✍️</span>
+  <span><strong>Type your guest list</strong>
+  <span class="text-muted">No spreadsheet needed. Paste or type names, pick couples, untick anyone missing a meal. About two minutes.</span></span>
+  <span class="start-go">Start →</span>
+</a>
+<h3 class="mt3" style="color:var(--muted);font-size:.8rem;letter-spacing:.1em;text-transform:uppercase">Or use a file</h3>
 <div class="card mt2">
   <form method="post" enctype="multipart/form-data">
     <div class="form-group">
@@ -208,20 +213,22 @@ def upload_file():
     </div>
     <div class="drop-zone" id="drop-zone">
       <div class="icon">📋</div>
-      <p><strong>Choose a guest CSV or a saved plan</strong> or drag it here</p>
+      <p><strong>Upload a guest CSV or open a saved plan</strong> or drag it here</p>
       <p class="mt1" id="file-label">.csv or .json</p>
     </div>
     <input type="file" name="csv_file" id="csv-input" accept=".csv,.json,text/csv,application/json">
     <button type="submit" class="btn btn-primary" style="width:100%">Continue →</button>
   </form>
 </div>
-<div class="card mt2">
-  <h3>CSV format</h3>
+<details class="card mt2">
+  <summary style="cursor:pointer;font-weight:700">CSV format</summary>
   <code style="display:block;background:var(--cream);padding:.75rem;border-radius:4px;font-size:.82rem;margin-top:.75rem;overflow-x:auto">name, sex, group, relations, preferred people, [Meal 1], [Meal 2], …</code>
   <p class="text-muted mt2"><strong>sex</strong>: male/female (or M/F). <strong>group</strong> (optional): family or party, kept spread out.
   <strong>relations</strong>: people they must <em>not</em> sit next to. <strong>preferred people</strong>: people they'd like to sit next to.
   Meal columns: <strong>Yes</strong> or <strong>No</strong>, in the order the meals happen.</p>
-</div>
+  <p class="text-muted mt1"><a href="/static/Example_Plan.csv" style="color:var(--gold)">Example CSV</a> ·
+  <a href="/static/Blank_Plan.csv" style="color:var(--gold)">Blank template</a></p>
+</details>
 <script>
 (function() {{
   const dz = document.getElementById('drop-zone'), inp = document.getElementById('csv-input');
@@ -249,7 +256,25 @@ def upload_file():
   }}
 }})();
 </script>"""
-    return page("Upload", body, step=1)
+    return page("Start", body, step=1)
+
+
+# ── Step 1 (no file): guest builder ───────────────────────────────────────────
+@app.get("/new")
+def new_plan_page():
+    body = """<div id="builder"><div class="spinner-wrap"><div class="spinner"></div></div></div>"""
+    scripts = f'<script src="/static/new.js?v={ASSET_V}"></script>'
+    return page("New plan", body, step=1, scripts=scripts)
+
+
+@app.post("/api/new_plan")
+def api_new_plan():
+    try:
+        plan = pl.plan_from_builder(_body())
+    except pl.PlanError as e:
+        return api_error(str(e))
+    save_plan(plan)
+    return jsonify({"next": url_for("configure_tables")})
 
 
 # ── Step 2: guests ────────────────────────────────────────────────────────────
@@ -365,13 +390,14 @@ def configure_tables():
   <div class="flex-between" style="margin-bottom:1rem"><div><h3 style="margin:0">{escape(m)}</h3>
     <span class="text-muted">{counts[m]} guests</span></div>
     <button type="button" class="btn btn-sm btn-secondary add-table">+ Table</button></div>
+  <div class="split-btns">{''.join(f'<button type="button" class="btn btn-sm btn-ghost split" data-n="{k}">{k} table{"s" if k > 1 else ""}</button>' for k in range(1, min(4, max(1, counts[m] // 2)) + 1))}</div>
   <div class="size-inputs">{inputs}</div>
   <p class="text-muted mt1" style="font-size:.8rem">Seats: <strong class="sum">{sum(chosen[m])}</strong> / {counts[m]}</p></div>"""
     regen_note = ('<div class="alert alert-warning">Saving new table sizes creates a fresh seating plan '
                   'and replaces the current one. Save your plan first if you want to keep it.</div>'
                   if plan["seating"] else "")
     body = f"""
-<h1>Tables</h1><p class="subtitle">How many seats at each table, for each meal.</p>
+<h1>Tables</h1><p class="subtitle">How many tables at each meal. Tap a button to split guests evenly, or type exact seat numbers.</p>
 {alerts(warnings, "warning")}{regen_note}
 <div class="action-bar"><a href="?auto=1" class="btn btn-secondary">✦ Suggest sizes</a></div>
 <form method="post">{blocks}
@@ -393,6 +419,17 @@ document.querySelectorAll('.meal-sizes').forEach(card => {{
   wrap.addEventListener('click', e => {{
     if (e.target.classList.contains('remove-table') && wrap.children.length > 1) {{ e.target.parentNode.remove(); update(); }}
   }});
+  card.querySelectorAll('.split').forEach(btn => btn.addEventListener('click', () => {{
+    const n = +btn.dataset.n, base = Math.floor(need / n), extra = need % n;
+    wrap.replaceChildren();
+    for (let k = 0; k < n; k++) {{
+      const d = document.createElement('div'); d.className = 'size-input-wrap';
+      d.innerHTML = '<input type="number" min="2" max="200"><button type="button" class="remove-table" aria-label="Remove table">×</button>';
+      const inp = d.querySelector('input'); inp.name = 'sizes-' + card.dataset.i; inp.value = base + (k < extra ? 1 : 0);
+      wrap.appendChild(d);
+    }}
+    update();
+  }}));
   wrap.addEventListener('input', update); update();
 }});
 </script>"""

@@ -4,9 +4,12 @@ Seating plans for weekends with several meals. It alternates men and women, keep
 
 ## Using it
 
-1. **Upload** a guest CSV (or open a saved plan file).
+1. **Start**: tap **Type your guest list** (no spreadsheet needed): name the event, keep or edit the meals,
+   paste men and women into two boxes, pick couples (always kept apart), untick anyone missing a meal.
+   Your typing is saved on the device as you go. **Copy guests from a saved plan** reuses last time's list.
+   Or upload a guest CSV / open a saved plan file.
 2. **Guests**: check the list. Add late guests or placeholders like "Weldon guest 1".
-3. **Tables**: set seats per table for each meal ("Suggest sizes" splits evenly).
+3. **Tables**: tap **1 / 2 / 3 tables** per meal to split guests evenly, or type exact seat numbers.
 4. **Seating**: the plan is generated. Then:
    - **Tap a guest** and every other seat at that meal turns **green** (safe swap), **amber** (minor, e.g. two women together) or **red** (would repeat neighbours or break a keep-apart rule, with the reason). Tap a guest to swap, at any table. Every change has **Undo**.
    - **🔒 Lock** guests you're happy with, then **↻ Regenerate** that meal (or everything) to re-seat everyone else around them. Use this for the host at the head of the table too.
@@ -55,4 +58,5 @@ On a phone: open the site, then Share → **Add to Home Screen**.
 | `solver.py` | Seating optimiser (simulated annealing across all tables of a meal, with locked seats) |
 | `pdfs.py` | Printable outputs |
 | `static/results.js` | The interactive seating editor |
+| `static/new.js` | The no-file guest list builder |
 | `Table_Plans.py` | CSV reading and validation (also a command-line version) |

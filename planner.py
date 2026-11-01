@@ -74,6 +74,47 @@ def plan_from_csv(path, event):
     return new_plan(event, meals, [person_dict(p) for p in people]), []
 
 
+def plan_from_builder(data):
+    """Build a plan from the no-CSV builder:
+    {"event", "meals": [...], "guests": [{"name", "sex", "meals": [...], "partner"?}]}
+    Partners are kept apart (added to each other's relations)."""
+    if not isinstance(data, dict):
+        raise PlanError("Nothing to create.")
+    meals = []
+    for m in data.get("meals") or []:
+        m = " ".join(str(m).split())[:40]
+        if m and m not in meals:
+            meals.append(m)
+    if not meals:
+        raise PlanError("Add at least one meal.")
+    guests = data.get("guests") or []
+    if len(guests) < 2:
+        raise PlanError("Add at least two guests.")
+    people, seen = [], {}
+    for g in guests:
+        name = _clean_name(g.get("name"))
+        key = name.lower()
+        if key in seen:
+            raise PlanError(f"{name} is listed twice. Add an initial to tell them apart (e.g. “Tom W”).")
+        seen[key] = name
+        gm = [m for m in (g.get("meals") or []) if m in meals]
+        people.append({"name": name, "sex": _clean_sex(g.get("sex")), "group": "",
+                       "relations": [], "preferred": [], "meals": gm})
+    by_name = {p["name"]: p for p in people}
+    for g in guests:
+        a, b = _clean_name(g.get("name")), (g.get("partner") or "").strip()
+        if b and b in by_name and b != a:
+            for x, y in ((a, b), (b, a)):
+                if y not in by_name[x]["relations"]:
+                    by_name[x]["relations"].append(y)
+    nobody = [p["name"] for p in people if not p["meals"]]
+    if len(nobody) == len(people):
+        raise PlanError("Tick at least one meal for your guests.")
+    people = [p for p in people if p["meals"]]  # guests ticked for no meals aren't coming
+    event = " ".join(str(data.get("event") or "").split())[:80] or "My event"
+    return new_plan(event, meals, people)
+
+
 # ── Lookups ──────────────────────────────────────────────────────────────────
 def people_by_name(plan):
     return {p["name"]: p for p in plan["people"]}
